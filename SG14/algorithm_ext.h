@@ -2,8 +2,13 @@
 
 namespace stdext
 {
+	template<class T>
+	void destroy_at(T* data)
+	{
+		data->~T();
+	}
 	template<class ForwardIterator>
-	void destruct(ForwardIterator begin, ForwardIterator end)
+	void destroy(ForwardIterator begin, ForwardIterator end)
 	{
 		typedef typename std::iterator_traits<ForwardIterator>::value_type _T;
 		while (begin != end)
@@ -14,8 +19,8 @@ namespace stdext
 	}
 
 
-	template<class SrcIt, class Sentinel, class FwdIt>
-	FwdIt uninitialized_move(SrcIt SrcBegin, Sentinel SrcEnd, FwdIt Dst)
+	template<class InputIt, class FwdIt>
+	FwdIt uninitialized_move(InputIt SrcBegin, InputIt SrcEnd, FwdIt Dst)
 	{
 		FwdIt current = Dst;
 		try
@@ -30,14 +35,14 @@ namespace stdext
 		}
 		catch (...)
 		{
-			destruct(Dst, current);
+			destroy(Dst, current);
 			throw;
 		}
 
 	}
 
-	template<class FwdIt, class Sentinel>
-	FwdIt uninitialized_value_construct(FwdIt first, Sentinel last)
+	template<class FwdIt>
+	FwdIt uninitialized_value_construct(FwdIt first, FwdIt last)
 	{
 		FwdIt current = first;
 		try
@@ -51,14 +56,14 @@ namespace stdext
 		}
 		catch (...)
 		{
-			destruct(first, current);
+			destroy(first, current);
 			throw;
 		}
 
 	}
 	
-	template<class FwdIt, class Sentinel>
-	FwdIt uninitialized_default_construct(FwdIt first, Sentinel last)
+	template<class FwdIt>
+	FwdIt uninitialized_default_construct(FwdIt first, FwdIt last)
 	{
 		FwdIt current = first;
 		try
@@ -72,7 +77,7 @@ namespace stdext
 		}
 		catch (...)
 		{
-			destruct(first, current);
+			destroy(first, current);
 			throw;
 		}
 	}
@@ -80,65 +85,63 @@ namespace stdext
 	template<class BidirIt, class UnaryPredicate>
 	BidirIt unstable_remove_if(BidirIt first, BidirIt last, UnaryPredicate p)
 	{
-		while (1) {
-			while ((first != last) && p(*first)) {
-				++first;
-			}
-			if (first == last--) break;
-			while ((first != last) && !p(*last)) {
-				--last;
-			}
-			if (first == last) break;
-			*first++ = std::move(*last);
-		}
-		return first;
-	}
-	template<class BidirIt, class Val>
-	BidirIt unstable_remove(BidirIt first, BidirIt last, Val v)
-	{
-		while (1) {
-			while ((first != last) && (*first == v)) {
-				++first;
-			}
-			if (first == last--) break;
-			while ((first != last) && !(*last == v)) {
-				--last;
-			}
-			if (first == last) break;
-			*first++ = std::move(*last);
-		}
-		return first;
-	}
+		for (; ; ++first)
+		{
+			for (; first != last && !p(*first); ++first);
+			if (first == last)
+				break;
 
+			for (; first != --last && p(*last); );
+			if (first == last)
+				break;
 
+			*first = std::move(*last);
+		}
+
+		return (first);
+	}
 
 	//this exists as a point of reference for providing a stable comparison vs unstable_remove_if
 	template<class BidirIt, class UnaryPredicate>
 	BidirIt partition(BidirIt first, BidirIt last, UnaryPredicate p)
 	{
-		while (1) {
-			while ((first != last) && p(*first)) {
-				++first;
-			}
-			if (first == last--) break;
-			while ((first != last) && !p(*last)) {
-				--last;
-			}
-			if (first == last) break;
-			std::iter_swap(first++, last);
+		using namespace std;
+		for (; ; ++first)
+		{
+			for (; first != last && p(*first); ++first);
+			if (first == last)
+				break;
+
+			for (; first != --last && !p(*last); );
+			if (first == last)
+				break;
+
+			iter_swap(first, last);
 		}
-		return first;
+		return (first);
 	}
 
 	//this exists as a point of reference for providing a stable comparison vs unstable_remove_if
 	template<class ForwardIt, class UnaryPredicate>
-	ForwardIt remove_if(ForwardIt first, ForwardIt last, UnaryPredicate p)
+	auto remove_if(ForwardIt first, ForwardIt last, UnaryPredicate p)
 	{
-		first = std::find_if(first, last, p);
+		using namespace std;
+		first = find_if(first, last, p);
 		if (first != last)
-			for (ForwardIt i = first; ++i != last; )
+			for (auto i = first; ++i != last; )
 				if (!p(*i))
-					*first++ = std::move(*i);
+					*first++ = move(*i);
+		return first;
+	}
+	template<class FwdIt, class Pred>
+	auto semistable_partition(FwdIt first, FwdIt last, Pred p)
+	{
+		using namespace std;
+		first = find_if(first, last, [&](auto& a) {return !p(a); });
+		if (first != last)
+			for (auto i = first; ++i != last; )
+				if (p(*i))
+					swap(*first++, *i);
 		return first;
 	}
 }
